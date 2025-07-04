@@ -1,0 +1,10 @@
+init: 1
+final: 1
+temporals: 1
+traj: 1
+q: 1
+AR: 1
+circ: 1
+order: 1
+adv_hex: 1
+g_of_r: 0
