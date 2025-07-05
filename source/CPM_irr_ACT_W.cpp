@@ -122,6 +122,13 @@ void LinkedListCreation(vector<LinkedListElementPair*>& LLheadVec, vector<Linked
                         const vector<int>& neighborNum, const vector<vector<int>>& neighborsList,\
                         const vector<double>& siteComX, const double Lx);
 //
+void readCompartData(
+    const std::string& filename,
+    std::vector<double>& avgAreaFrac,
+    std::vector<std::vector<double>>& J_int,
+    std::vector<std::vector<double>>& J_ext
+);
+//
 void LinkedListSiteCreation(vector<LinkedListElement*>& LLheadVec, vector<LinkedListElement*>& LLtailVec, vector<int>& LLNumVec,\
                             const vector<int>& sigmaMat, vector<int>& isBorder,\
                             const vector<int>& neighborNum, const vector<vector<int>>& neighborsList,\
@@ -254,7 +261,7 @@ void no_LL()
 
   int NSites;
   double Lx, Ly;
-  double Alpha;
+  double Alpha = 0.0 / 0.0; // I want it to be NaN, because J matrices include the information
   double Kb;
   double Tem;
   int NumCells;
@@ -269,7 +276,15 @@ void no_LL()
   
   simulationDataReader(&NSites, &Lx, &Ly, &Alpha, &Kb, &Tem,  &NumCells, \
                        &AvgCellArea, &Lambda, &maxMCSteps, &samplesPerWrite, &printingTimeInterval, &numLinkedList, &initConfig);
+                     
   SweepLength = NSites;
+
+  // Reading compartments data //
+  std::vector<double> avgAreaFrac;
+  std::vector<std::vector<double>> J_int, J_ext;
+  readCompartData("compart_params.txt", avgAreaFrac, J_int, J_ext);
+  int NComparts = avgAreaFrac.size();
+  // Reading compartments data //
 
   int writePerZip=0;
   std::ifstream writePerZipFile("writePerZip.csv");
@@ -2738,6 +2753,88 @@ void LinkedListCreation(vector<LinkedListElementPair*>& LLheadVec, vector<Linked
   
   // int r;
   // r=5;
+}
+//
+void readCompartData(
+    const std::string& filename,
+    std::vector<double>& avgAreaFrac,
+    std::vector<std::vector<double>>& J_int,
+    std::vector<std::vector<double>>& J_ext
+) {
+    std::ifstream in(filename);
+    if (!in) {
+        throw std::runtime_error("Cannot open " + filename);
+    }
+
+    std::string line;
+
+    // 1) Read avgAreaFrac until "#"
+    avgAreaFrac.clear();
+    std::getline(in, line); // skip the name of matrix
+    while (std::getline(in, line)) {
+        if (line == "#") break;
+        if (line.empty()) continue;
+        avgAreaFrac.push_back(std::stod(line));
+    }
+    int N = int(avgAreaFrac.size());
+    if (N == 0) {
+        throw std::runtime_error("No data in first block");
+    }
+
+    // prepare matrices
+    J_int.assign(N, std::vector<double>(N, 0.0));
+    J_ext.assign(N, std::vector<double>(N, 0.0));
+
+    // 2) Read J_int (lower‐triangle ragged form)
+    // skip blank or "#"
+    while (std::getline(in, line)) {
+        if (line.empty() || line == "#") continue;
+        else break;
+    }
+    std::getline(in, line); // skip the name of matrix
+    // line now has row 0
+    {
+        std::istringstream ss(line);
+        double v0;
+        ss >> v0;
+        J_int[0][0] = v0;
+    }
+    for (int i = 1; i < N; ++i) {
+        std::getline(in, line);
+        std::istringstream ss(line);
+        for (int j = 0; j <= i; ++j) {
+            double v;
+            ss >> v;
+            J_int[i][j] = v;
+            J_int[j][i] = v;
+        }
+    }
+
+    // 3) Read J_ext
+    // skip blank or "#"
+    while (std::getline(in, line)) {
+        if (line.empty() || line == "#") continue;
+        else break;
+        
+    }
+    std::getline(in, line); // skip the name of matrix
+    // line now has row 0
+    {
+        std::istringstream ss(line);
+        double v0;
+        ss >> v0;
+        J_ext[0][0] = v0;
+    }
+    for (int i = 1; i < N; ++i) {
+        std::getline(in, line);
+        std::istringstream ss(line);
+        for (int j = 0; j <= i; ++j) {
+            double v;
+            ss >> v;
+            J_ext[i][j] = v;
+            J_ext[j][i] = v;
+        }
+    }
 }
 //
 void LinkedListSiteCreation(vector<LinkedListElement*>& LLheadVec, vector<LinkedListElement*>& LLtailVec, vector<int>& LLNumVec,\
