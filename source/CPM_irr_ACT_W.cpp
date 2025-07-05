@@ -117,6 +117,15 @@ struct Energy wholeSystemEnergyCalc_actPlus_W(const vector<int>& sigmaMat,\
                                     const double p, const vector<double>& theta, \
                                     const vector<double>& comX, const vector<double>& comY);
 //
+struct Energy energyCalcCompart(const vector<int>& sigmaMat, const vector<int>& compartMat,\
+                                const vector<vector<double>>& J_int, const vector<vector<double>>& J_ext,\
+                                const vector<vector<int>>& neighborsList, const vector<int>& neighborNum,\ 
+                                const vector<vector<double>>& edges, const double avgEdge,\ 
+                                const vector<vector<double>>& compartArea,\
+                                const double Lambda, const vector<double>& avgArea, const int NumCells, \
+                                const double p, const vector<double>& theta, \
+                                const vector<double>& comX, const vector<double>& comY);
+//
 void LinkedListCreation(vector<LinkedListElementPair*>& LLheadVec, vector<LinkedListElementPair*>& LLtailVec, vector<int>& LLNumVec,\
                         const vector<int>& sigmaMat, const vector<int>& cellSiteNum, \
                         const vector<int>& neighborNum, const vector<vector<int>>& neighborsList,\
@@ -156,7 +165,11 @@ void singleInitializer(std::mt19937 &mt_rand, vector<int>& sigmaMat, vector<doub
 //
 void crystalInitializer(vector<vector<int>>& sigmaMat, vector<vector<int>>& sitesX, vector<vector<int>>& sitesY, int NumCells, double AvgCellArea);
 //
+void compartInitializer(std::mt19937 &mt_rand, const vector<int>& sigmaMat, vector<int>& compartMat, const vector<double>& avgAreaFrac);
+//
 void areaCalc(const vector<int>& sigmaMat, vector<double>& cellArea, vector<int>& cellSiteNum, const vector<double>& latticeArea);
+//
+void compartAreaCalc(const vector<int>& sigmaMat, const vector<int>& compartMat, vector<vector<double>>& compartArea, const vector<double>& latticeArea);
 //
 void saveSigmaMatCSV(const vector<vector<int>>& sigmaMat, const std::string &filename);
 //
@@ -284,6 +297,13 @@ void no_LL()
   std::vector<std::vector<double>> J_int, J_ext;
   readCompartData("compart_params.txt", avgAreaFrac, J_int, J_ext);
   int NComparts = avgAreaFrac.size();
+  vector<double> avgArea(NComparts);
+  for (int i = 0; i < NComparts; i++)
+  {
+    // average area of each compartment
+    // 0= cytoplasm ; 1= Fz; 2= Vang;
+    avgArea[i] = avgAreaFrac[i] * AvgCellArea;
+  }
   // Reading compartments data //
 
   int writePerZip=0;
@@ -344,14 +364,25 @@ void no_LL()
   vector<double> sitesX(NSites); // The value of the X(t) of each site
   vector<double> sitesY(NSites); // The value of the Y(t) of each site
 
+  vector<int> compartMat(NSites); // The compartments of cells
+
   vector<vector<int> > sigmaSamples(NSites, vector<int>(samplesPerWrite));
+  vector<vector<int> > compartSamples(NSites, vector<int>(samplesPerWrite));
   // vector<vector<double> > xSamples(NSites, vector<double>(samplesPerWrite));
   // vector<vector<double> > ySamples(NSites, vector<double>(samplesPerWrite));
   vector<vector<int> > xSamples(NSites, vector<int>(samplesPerWrite));
   vector<vector<int> > ySamples(NSites, vector<int>(samplesPerWrite));
 
   vector<double> cellArea(NumCells + 1); // The array showing the area of each cell (NOTE: values are from
-  cellArea[0] = 0;                       // the index 1 to NumCells, inclusive)
+                                         // the index 1 to NumCells, inclusive)
+  vector<vector<double>> compartArea(NumCells + 1, vector<double>(NComparts));// The array showing the area of each compartment
+  for (int compart_c = 0; compart_c < NComparts; compart_c++) // index 0 is for the void space (which we dont have here)
+  {
+    compartArea[0][compart_c] = 0;
+  }
+  cellArea[0] = 0;
+  
+
   vector<vector<double>> areaSamples(NumCells + 1, vector<double>(samplesPerWrite));
   for (int i=0; i<samplesPerWrite; i++)
   {
@@ -536,7 +567,7 @@ void no_LL()
   ////////////////////// DEFINING RANDOM GENERATOR ///////////////
   
   ////////////////////// LOADING OR INITIATING ////////////////
-  if (loadSwitch == 0)
+  if (loadSwitch == 0) // initialization must be done
   {
     /////////////////// MAKING SUB DIRECTORIES /////////////////
     // This block is for windows:
@@ -545,14 +576,14 @@ void no_LL()
     // mkdir(mainResumeFolderName.c_str()); //making main_resume folder
     // mkdir(backupResumeFolderName.c_str()); //making backup_resume folder
 
-    // cout<<"DRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR"<<endl;
+    
     // This block is for Linux:
     mkdir(dataFolderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); //making data folder
     mkdir(initFolderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); //making init folder
     mkdir(mainResumeFolderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); //making main_resume folder
     mkdir(backupResumeFolderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); //making backup_resume folder
     /////////////////// MAKING SUB DIRECTORIES /////////////////
-    // cout<<"BRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR"<<endl;
+    
     
     /////////////////// RANDOM GENERATOR SEEDING /////////////////
     random_device rd; // random seed creation
@@ -635,7 +666,18 @@ void no_LL()
       exit(0);
     }
 
+    compartInitializer(mt_rand, sigmaMat, compartMat, avgAreaFrac); // initialization of compartments
     areaCalc(sigmaMat, cellArea, cellSiteNum, latticeArea);
+    compartAreaCalc(sigmaMat, compartMat, compartArea, latticeArea);
+
+    // for (int i = 0; i < NumCells; i++)
+    // {
+    //   if(abs(cellArea[i]-compartArea[i][0]-compartArea[i][1]-compartArea[i][2])>0.00001)
+    //   {
+    //     cout<<" insonsistency";
+    //   }
+    // }
+    
 
     ///////////////// uncommented this part for activity /////////////////
     // Activity initialization
@@ -653,6 +695,7 @@ void no_LL()
 
     // saving the initial configuration
     saveInt1DVec(sigmaMat, initFolderName + "/" + "sigma_init.csv");
+    saveInt1DVec(compartMat, initFolderName + "/" + "compart_init.csv");
     saveDbl1DVec(sitesX, initFolderName + "/" + "sitesX_init.csv");
     saveDbl1DVec(sitesY, initFolderName + "/" + "sitesY_init.csv");
 
@@ -666,7 +709,11 @@ void no_LL()
 
     // e0 = wholeSystemEnergyCalc(sigmaMat, neighborsList, neighborNum, cellArea, Alpha, Lambda, AvgCellArea, NumCells);
     // e0 = wholeSystemEnergyCalc_actPlus(sigmaMat, neighborsList, neighborNum, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX_init, comY_init);
-    e0 = wholeSystemEnergyCalc_actPlus_W(sigmaMat, neighborsList, neighborNum, edges, avgEdge, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX_init, comY_init);
+    // e0 = wholeSystemEnergyCalc_actPlus_W(sigmaMat, neighborsList, neighborNum, edges, avgEdge, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX_init, comY_init);
+    e0 = energyCalcCompart(sigmaMat, compartMat, J_int, J_ext,
+                           neighborsList, neighborNum, edges, avgEdge, 
+                           compartArea, Lambda, avgArea, NumCells, 
+                           p, theta, comX_init, comY_init);
     ofstream e0Initial;
     e0Initial.open(initFolderName + "/" + "e0Initial.csv");
     e0Initial << e0.total;
@@ -2554,6 +2601,81 @@ struct Energy wholeSystemEnergyCalc(const vector<int>& sigmaMat,\
   return wholeSystemEnergy;
 }
 //
+struct Energy energyCalcCompart(const vector<int>& sigmaMat, const vector<int>& compartMat,\
+                                const vector<vector<double>>& J_int, const vector<vector<double>>& J_ext,\
+                                const vector<vector<int>>& neighborsList, const vector<int>& neighborNum,\ 
+                                const vector<vector<double>>& edges, const double avgEdge,\ 
+                                const vector<vector<double>>& compartArea,\
+                                const double Lambda, const vector<double>& avgArea, const int NumCells, \
+                                const double p, const vector<double>& theta, \
+                                const vector<double>& comX, const vector<double>& comY)
+{
+
+  int NSites = sigmaMat.size();
+  int NCompart = avgArea.size();
+  // int NumCells = cellArea.size() - 1;
+  struct Energy wholeSystemEnergy;
+  
+  int siteC, NNeigh, neighIndC, neighInd;
+  int cellInd_1, compartInd_1;
+  int cellInd_2, compartInd_2;
+
+  //inter
+  wholeSystemEnergy.inter = 0.;
+  for (siteC = 0; siteC < NSites; siteC++)
+  {
+    cellInd_1 = sigmaMat[siteC];
+    compartInd_1 = compartMat[siteC];
+
+    NNeigh = neighborNum[siteC];
+    for (neighIndC = 0; neighIndC < NNeigh; neighIndC++)
+    {
+      neighInd = neighborsList[siteC][neighIndC];
+      
+      cellInd_2 = sigmaMat[neighInd];
+      compartInd_2 = compartMat[neighInd];
+
+      if (cellInd_1==cellInd_2) // of the same cell (J_int)
+      {
+        wholeSystemEnergy.inter += 0.5 * J_int[compartInd_1][compartInd_2] * (edges[siteC][neighIndC] / avgEdge);
+      }
+      else // of different cells (J_ext)
+      {
+        wholeSystemEnergy.inter += 0.5 * J_ext[compartInd_1][compartInd_2] * (edges[siteC][neighIndC] / avgEdge);
+      }
+    }
+  }
+  //inter
+  
+  //area
+  wholeSystemEnergy.area = 0.;
+  for (int cell_c = 1; cell_c <= NumCells; cell_c++)
+  {
+    // double total_A=0;
+    for (int compartC = 0; compartC < NCompart; compartC++)
+    {
+      wholeSystemEnergy.area += (1.0 * Lambda * pow((compartArea[cell_c][compartC] - avgArea[compartC]), 2.)); 
+      // total_A += compartArea[cell_c][compartC];
+    }
+    // wholeSystemEnergy.area += (1.0 * Lambda * pow((total_A - 40.0), 2.)); 
+  }
+  //area
+
+  //act
+  wholeSystemEnergy.act = 0.;
+  for (int cell_c = 1; cell_c <= NumCells; cell_c++)
+  {
+    wholeSystemEnergy.act +=  ((-p) * (cos(theta[cell_c])) * comX[cell_c] );
+    wholeSystemEnergy.act +=  ((-p) * (sin(theta[cell_c])) * comY[cell_c] );
+  }
+  //act
+
+  wholeSystemEnergy.total = wholeSystemEnergy.inter + wholeSystemEnergy.area + wholeSystemEnergy.act;
+
+  return wholeSystemEnergy;
+
+}
+//
 struct Energy wholeSystemEnergyCalc_actPlus_W(const vector<int>& sigmaMat,\ 
                                     const vector<vector<int>>& neighborsList, const vector<int>& neighborNum,\ 
                                     const vector<vector<double>>& edges, const double avgEdge,\ 
@@ -3309,6 +3431,35 @@ void recConfluentInitializer(vector<int>& sigmaMat, vector<double>& sitesX, vect
   // }
 }
 //
+void compartInitializer(std::mt19937 &mt_rand, const vector<int>& sigmaMat, vector<int>& compartMat, const vector<double>& avgAreaFrac)
+{
+  int N_compart = avgAreaFrac.size();
+  int NSites = sigmaMat.size();
+
+  int minRange = 0;
+  int maxRange = 10000;
+  
+  double randUniform;
+  double accum;
+  for (int siteC = 0; siteC < NSites; siteC++)
+  {
+    randUniform = 1.0*(minRange+(mt_rand())%(maxRange-minRange+1))/(maxRange-minRange);
+
+    accum = 0; // accumulation of probabilities
+    for (int compartC = 0; compartC < N_compart; compartC++)
+    {
+      if (randUniform <= accum + avgAreaFrac[compartC])
+      {
+        compartMat[siteC] = compartC;
+        break;
+      } else
+      {
+        accum = accum + avgAreaFrac[compartC];
+      }
+    }    
+  }
+}
+//
 void singleInitializer(std::mt19937 &mt_rand, vector<int>& sigmaMat, vector<double>& sitesX, vector<double>& sitesY, \
                     const vector<double>& siteComX, const vector<double>& siteComY, \
                     int NumCells, double AvgCellArea, double Lx, double Ly)
@@ -3679,7 +3830,7 @@ void crystalInitializer(vector<vector<int>>& sigmaMat, vector<vector<int>>& site
     }
   }
 }
-
+//
 void areaCalc(const vector<int>& sigmaMat, vector<double>& cellArea, vector<int>& cellSiteNum, const vector<double>& latticeArea)
 {
   
@@ -3703,8 +3854,38 @@ void areaCalc(const vector<int>& sigmaMat, vector<double>& cellArea, vector<int>
     cellSiteNum[cellIndex] += 1;
   }
 }
+//
+void compartAreaCalc(const vector<int>& sigmaMat, const vector<int>& compartMat, vector<vector<double>>& compartArea, const vector<double>& latticeArea)
+{
+  
+  
+  int NSites = sigmaMat.size();
+  int NumCells = compartArea.size() - 1;
+  int NComparts = compartArea[0].size();
+
+  // cellArea[0] = 0;
+  // cellSiteNum[0] = 0;
+  int cellIndex;
+  int compartIndex;
+  for (cellIndex = 0; cellIndex <= NumCells; cellIndex++)
+  {
+    for (compartIndex = 0; compartIndex < NComparts; compartIndex++)
+    {
+      compartArea[cellIndex][compartIndex] = 0.0;
+    }
+  }
 
 
+  for (int siteC = 0; siteC < NSites; siteC++)
+  {
+    cellIndex = sigmaMat[siteC];
+    compartIndex = compartMat[siteC];
+
+    compartArea[cellIndex][compartIndex] += latticeArea[siteC];
+    // cellSiteNum[cellIndex] += 1;
+  }
+}
+//
 void saveSigmaMatCSV(const vector<vector<int>>& sigmaMat, const std::string &filename)
 {
   
