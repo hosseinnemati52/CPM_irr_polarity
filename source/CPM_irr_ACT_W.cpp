@@ -97,6 +97,11 @@ bool directoryExists(const std::string& path) {
     return access(path.c_str(), F_OK | R_OK | X_OK) == 0;
 }
 //
+void energyEpsilonsFinder(double &E_test_eps, double &dE_eps,\
+                          const vector<vector<double>>& J_int,\
+                          const vector<vector<double>>& J_ext,\
+                          const double Lambda, const double p);
+//
 struct Energy wholeSystemEnergyCalc(const vector<int>& sigmaMat,\ 
                                     const vector<vector<int>>& neighborsList, const vector<int>& neighborNum,\ 
                                     const vector<double>& cellArea,\
@@ -137,6 +142,8 @@ void readCompartData(
     std::vector<std::vector<double>>& J_int,
     std::vector<std::vector<double>>& J_ext
 );
+//
+void initial_LS_saver(const string FolderName, const std::mt19937 &mt_rand);
 //
 void LinkedListSiteCreation(vector<LinkedListElement*>& LLheadVec, vector<LinkedListElement*>& LLtailVec, vector<int>& LLNumVec,\
                             const vector<int>& sigmaMat, vector<int>& isBorder,\
@@ -667,6 +674,7 @@ void no_LL()
     }
 
     compartInitializer(mt_rand, sigmaMat, compartMat, avgAreaFrac); // initialization of compartments
+
     areaCalc(sigmaMat, cellArea, cellSiteNum, latticeArea);
     compartAreaCalc(sigmaMat, compartMat, compartArea, latticeArea);
 
@@ -722,68 +730,22 @@ void no_LL()
     /////////////////// SAVING INITIAL VALUES /////////////////
 
     
-    //////////////////////////SAVING IN MAIN RESUME/////////////////////////////
-    // saving the initial time
+    // initial LS saving
     ofstream tLSCheck;
-    tLSCheck.open(mainResumeFolderName+"/"+"tLSCheck.csv");
-    tLSCheck << 0;
-    tLSCheck.close();
-
-    // saving LS random generator
-    //std::ofstream randStateLS(mainResumeFolderName+"/"+"randStateLS.csv");
     ofstream randStateLS;
-    randStateLS.open(mainResumeFolderName+"/"+"randStateLS.csv");
-    randStateLS << mt_rand;
-    randStateLS.close();
-
-
-    // saving oldRoundCounter to be zero
     ofstream roundCounterLS;
-    roundCounterLS.open(mainResumeFolderName+"/"+"roundCounterLS.csv");
-    roundCounterLS << 0;
-    roundCounterLS.close();
-
-    // saving the initial time
     ofstream tLS;
-    tLS.open(mainResumeFolderName+"/"+"tLS.csv");
-    tLS << 0;
-    tLSValue=0;
-    tLS.close();
-    //////////////////////////SAVING IN MAIN RESUME/////////////////////////////
-    
-
-    //////////////////////////SAVING IN BACKUP RESUME///////////////////////////
-    // saving the initial time
-    //ofstream tLSCheck;
-    tLSCheck.open(backupResumeFolderName+"/"+"tLSCheck.csv");
-    tLSCheck << 0;
-    tLSCheck.close();
-
-    // saving LS random generator
-    //ofstream randStateLS;
-    randStateLS.open(backupResumeFolderName+"/"+"randStateLS.csv");
-    randStateLS << mt_rand;
-    randStateLS.close();
-
-    // saving oldRoundCounter to be zero
-    //ofstream roundCounterLS;
-    roundCounterLS.open(backupResumeFolderName+"/"+"roundCounterLS.csv");
-    roundCounterLS << 0;
-    roundCounterLS.close();
-
-    // saving the initial time
-    //ofstream tLS;
-    tLS.open(backupResumeFolderName+"/"+"tLS.csv");
-    tLS << 0;
-    tLS.close();
-    //////////////////////////SAVING IN BACKUP RESUME///////////////////////////
+    initial_LS_saver(mainResumeFolderName, mt_rand); //SAVING IN MAIN RESUME//
+    initial_LS_saver(backupResumeFolderName, mt_rand); //SAVING IN BACKUP RESUME//
+    tLSValue = 0;
+    // initial LS saving
 
     // loadFolderName = mainResumeFolderName;
 
     writeCounter = 0;
 
   }
-  else
+  else // loadSwitch != 0
   {
     if(loadSwitch == 1)
     {
@@ -812,6 +774,8 @@ void no_LL()
 
     // reproducing the final last saved areas amd COM coordinates
     areaCalc(sigmaMat, cellArea, cellSiteNum, latticeArea);
+    compartAreaCalc(sigmaMat, compartMat, compartArea, latticeArea);
+
 
     // calculate comXY based on loaded configuration; I need them for activity energy term
     vector<double> comX_load(NumCells + 1);
@@ -826,7 +790,11 @@ void no_LL()
     // e0 = wholeSystemEnergyCalc(sigmaMat, cellArea, Alpha, Lambda, AvgCellArea); // Calculationg final last saved energy
     // e0 = wholeSystemEnergyCalc(sigmaMat, neighborsList, neighborNum, cellArea, Alpha, Lambda, AvgCellArea, NumCells);
     // e0 = wholeSystemEnergyCalc_actPlus(sigmaMat, neighborsList, neighborNum, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX_load, comY_load);
-    e0 = wholeSystemEnergyCalc_actPlus_W(sigmaMat, neighborsList, neighborNum, edges, avgEdge, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX_load, comY_load);
+    // e0 = wholeSystemEnergyCalc_actPlus_W(sigmaMat, neighborsList, neighborNum, edges, avgEdge, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX_load, comY_load);
+    e0 = energyCalcCompart(sigmaMat, compartMat, J_int, J_ext,
+                           neighborsList, neighborNum, edges, avgEdge, 
+                           compartArea, Lambda, avgArea, NumCells, 
+                           p, theta, comX_load, comY_load);
     E = e0.total;
     
 
@@ -876,16 +844,8 @@ void no_LL()
   // double E_test_eps = 0.01*Alpha;
   double E_test_eps;
   double dE_eps;
-  if (fabs(p) > (1e-10)) // p is practically zero, so, we do not consider it
-  {
-    E_test_eps = std::min(std::min(0.01*Alpha, 0.01*Lambda), 0.01*p );
-    dE_eps = 1.0 * std::min( (std::min(fabs(Alpha), fabs(Lambda))), fabs(p)) * (1e-10); 
-  }else // p is non-zero, so, we have to consider it
-  {
-    E_test_eps = std::min(0.01*Alpha, 0.01*Lambda);
-    dE_eps = 1.0 * (std::min(fabs(Alpha), fabs(Lambda))) * (1e-10);
-  }
-  
+  energyEpsilonsFinder(E_test_eps, dE_eps, J_int, J_ext, Lambda, p);
+
   
 
   ///////// RELATED TO CTIVITY
@@ -922,6 +882,9 @@ void no_LL()
   ///////// RELATED TO CTIVITY
 
 
+  int compartOld, compartNew;
+  std::vector<std::vector<std::vector<double>>> J_tot{ J_int, J_ext }; // combine all J matrices together
+  int diff_cells_key_old, diff_cells_key_new;
 
   while (tLSValue < maxMCSteps)
   {
@@ -935,25 +898,37 @@ void no_LL()
         neighIndC = (mt_rand()) % neighborNum[indAttInto];
         indAttFrom = neighborsList[indAttInto][neighIndC];
 
-      } while ((sigmaMat[indAttInto]==sigmaMat[indAttFrom]) || (cellSiteNum[sigmaMat[indAttInto]]<=1));
+      } while (cellSiteNum[sigmaMat[indAttInto]]<=1);
       
       sigmaFrom = sigmaMat[indAttFrom];
       sigmaInto = sigmaMat[indAttInto];
       neighIndCFromInto = neighIndC; //BE CAREFUL: this is the index of 'indAttFrom' among the list of the neighbors of 'indAttInto'.
 
+      // diff_cells_key = bool(sigmaFrom - sigmaInto); // 1 if different, 0 if the same
+
+      compartOld = compartMat[indAttInto];
+      compartNew = (mt_rand()) % NComparts; // candidate for the compart of Into, in copying
+
+      if (indAttInto==indAttFrom && compartOld==compartNew) 
+      {// the same cell, the same compartment. Nothing to update
+        break;
+      } // Otherwise, updates must be done
+      
+
       // for dEInter
-      dFNInto = 0;
+      // dFNInto = 0;
       NNeigh = neighborNum[indAttInto];
       dEInter = 0.0;
       for (neighIndC = 0; neighIndC < NNeigh; neighIndC++)
       {
         neighInd = neighborsList[indAttInto][neighIndC];
-        // dFNInto = dFNInto + (int)(sigmaFrom != sigmaMat[neighInd]) - (int)(sigmaInto != sigmaMat[neighInd]);
-        // variation_vec[neighIndC] = (int)(sigmaFrom != sigmaMat[neighInd]) - (int)(sigmaInto != sigmaMat[neighInd]);
-        variation_vec[neighIndC] = (sigmaFrom != sigmaMat[neighInd]) - (sigmaInto != sigmaMat[neighInd]);
-        dFNInto = dFNInto + variation_vec[neighIndC];
-        dEInter += variation_vec[neighIndC] * Alpha * (edges[indAttInto][neighIndC] / avgEdge);
+        diff_cells_key_old = bool(sigmaMat[neighInd] - sigmaInto); // 1 if different, 0 if the same
+        diff_cells_key_new = bool(sigmaMat[neighInd] - sigmaFrom); // 1 if different, 0 if the same
+        dEInter += (J_tot[diff_cells_key_new][compartNew][compartMat[neighInd]] \
+                  - J_tot[diff_cells_key_old][compartOld][compartMat[neighInd]] )\
+                 * (edges[indAttInto][neighIndC] / avgEdge);
       }
+      INJAAAAAAAA
       // dEInter = Alpha * dFNInto;
       // for dEInter
       
@@ -2563,6 +2538,50 @@ void LL_based()
   // return 0;
 }
 //
+void energyEpsilonsFinder(double &E_test_eps, double &dE_eps,\
+                          const vector<vector<double>>& J_int,\
+                          const vector<vector<double>>& J_ext,\
+                          const double Lambda, const double p)
+{
+  double min_J;
+  int NCompart = J_int.size();
+
+  min_J = J_ext[0][0]; // I chose this as initial value, because this is always positive.
+
+  for (int i = 0; i < NCompart; i++) // sweep on J_ext
+  {
+    for (int j = 0; j < NCompart; j++)
+    {
+      if (J_ext[i][j] < min_J && J_ext[i][j] > (1e-8))
+      {
+        min_J = J_ext[i][j];
+      }
+    }
+  }
+
+  for (int i = 0; i < NCompart; i++) // sweep on J_int
+  {
+    for (int j = 0; j < NCompart; j++)
+    {
+      if (J_int[i][j] < min_J && J_int[i][j] > (1e-10))
+      {
+        min_J = J_int[i][j];
+      }
+    }
+  }
+  
+
+  if (fabs(p) > (1e-10)) // p is practically zero, so, we do not consider it
+  {
+    E_test_eps = std::min(std::min(0.01*min_J, 0.01*Lambda), 0.01*p );
+    dE_eps = 1.0 * std::min( (std::min(fabs(min_J), fabs(Lambda))), fabs(p)) * (1e-8); 
+  }else // p is non-zero, so, we have to consider it
+  {
+    E_test_eps = std::min(0.01*min_J, 0.01*Lambda);
+    dE_eps = 1.0 * (std::min(fabs(min_J), fabs(Lambda))) * (1e-8);
+  }
+}
+//
 struct Energy wholeSystemEnergyCalc(const vector<int>& sigmaMat,\ 
                                     const vector<vector<int>>& neighborsList, const vector<int>& neighborNum,\ 
                                     const vector<double>& cellArea,\
@@ -2957,6 +2976,36 @@ void readCompartData(
             J_ext[j][i] = v;
         }
     }
+}
+//
+void initial_LS_saver(const string FolderName, const std::mt19937 &mt_rand)
+{
+  // saving the initial time
+    ofstream tLSCheck;
+    tLSCheck.open(FolderName+"/"+"tLSCheck.csv");
+    tLSCheck << 0;
+    tLSCheck.close();
+
+    // saving LS random generator
+    //std::ofstream randStateLS(mainResumeFolderName+"/"+"randStateLS.csv");
+    ofstream randStateLS;
+    randStateLS.open(FolderName+"/"+"randStateLS.csv");
+    randStateLS << mt_rand;
+    randStateLS.close();
+
+
+    // saving oldRoundCounter to be zero
+    ofstream roundCounterLS;
+    roundCounterLS.open(FolderName+"/"+"roundCounterLS.csv");
+    roundCounterLS << 0;
+    roundCounterLS.close();
+
+    // saving the initial time
+    ofstream tLS;
+    tLS.open(FolderName+"/"+"tLS.csv");
+    tLS << 0;
+    // tLSValue=0;
+    tLS.close();
 }
 //
 void LinkedListSiteCreation(vector<LinkedListElement*>& LLheadVec, vector<LinkedListElement*>& LLtailVec, vector<int>& LLNumVec,\
