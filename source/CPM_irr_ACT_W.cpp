@@ -884,7 +884,9 @@ void no_LL()
 
   int compartOld, compartNew;
   std::vector<std::vector<std::vector<double>>> J_tot{ J_int, J_ext }; // combine all J matrices together
+  int diff_cells_key_att;
   int diff_cells_key_old, diff_cells_key_new;
+
 
   while (tLSValue < maxMCSteps)
   {
@@ -904,7 +906,7 @@ void no_LL()
       sigmaInto = sigmaMat[indAttInto];
       neighIndCFromInto = neighIndC; //BE CAREFUL: this is the index of 'indAttFrom' among the list of the neighbors of 'indAttInto'.
 
-      // diff_cells_key = bool(sigmaFrom - sigmaInto); // 1 if different, 0 if the same
+      diff_cells_key_att = bool(sigmaFrom - sigmaInto); // 1 if different, 0 if the same
 
       compartOld = compartMat[indAttInto];
       compartNew = (mt_rand()) % NComparts; // candidate for the compart of Into, in copying
@@ -928,62 +930,78 @@ void no_LL()
                   - J_tot[diff_cells_key_old][compartOld][compartMat[neighInd]] )\
                  * (edges[indAttInto][neighIndC] / avgEdge);
       }
-      INJAAAAAAAA
+      
       // dEInter = Alpha * dFNInto;
       // for dEInter
       
+
+      area_att = latticeArea[indAttInto];
+      
       // for dEAct
+      
       comX_old_Into = comX[sigmaInto];
       comY_old_Into = comY[sigmaInto];
-      area_old_Into = cellArea[sigmaInto];
+      // area_old_Into = cellArea[sigmaInto];
 
       comX_old_From = comX[sigmaFrom];
       comY_old_From = comY[sigmaFrom];
-      area_old_From = cellArea[sigmaFrom];
-
-      area_att = latticeArea[indAttInto];
-      // comX_new_Into = (1. / (area_old_Into-1.)) * (comX_old_Into * area_old_Into - sitesX[rowAttInto][colAttInto]);
-      // comY_new_Into = (1. / (area_old_Into-1.)) * (comY_old_Into * area_old_Into - sitesY[rowAttInto][colAttInto]);
+      // area_old_From = cellArea[sigmaFrom];
       
-      comX_new_Into = (comX_old_Into * area_old_Into - area_att * sitesX[indAttInto]) / (area_old_Into - area_att);
-      comY_new_Into = (comY_old_Into * area_old_Into - area_att * sitesY[indAttInto]) / (area_old_Into - area_att);
+      if (diff_cells_key_att) {
+        comX_new_Into = (comX_old_Into * area_old_Into - area_att * sitesX[indAttInto]) / (area_old_Into - area_att);
+        comY_new_Into = (comY_old_Into * area_old_Into - area_att * sitesY[indAttInto]) / (area_old_Into - area_att);
 
-      // newX = sitesX[rowAttFrom][colAttFrom] + intoSelectorMat[randIntInto][0]; // 0 is for x axis
-      // newY = sitesY[rowAttFrom][colAttFrom] + intoSelectorMat[randIntInto][1]; // 1 is for y axis
+        newX = sitesX[indAttFrom] - deltaComX[indAttInto][neighIndCFromInto]; //BE CAREFUL: 'neighIndCFromInto' is the index of 'indAttFrom' among the list of the neighbors of 'indAttInto'.
+        newY = sitesY[indAttFrom] - deltaComY[indAttInto][neighIndCFromInto]; //BE CAREFUL: 'neighIndCFromInto' is the index of 'indAttFrom' among the list of the neighbors of 'indAttInto'.
 
-      newX = sitesX[indAttFrom] - deltaComX[indAttInto][neighIndCFromInto]; //BE CAREFUL: 'neighIndCFromInto' is the index of 'indAttFrom' among the list of the neighbors of 'indAttInto'.
-      newY = sitesY[indAttFrom] - deltaComY[indAttInto][neighIndCFromInto]; //BE CAREFUL: 'neighIndCFromInto' is the index of 'indAttFrom' among the list of the neighbors of 'indAttInto'.
+        comX_new_From = (comX_old_From * area_old_From + area_att * newX) / (area_old_From + area_att);
+        comY_new_From = (comY_old_From * area_old_From + area_att * newY) / (area_old_From + area_att);
 
-      // comX_new_From = (1. / (area_old_From+1.)) * (comX_old_From * area_old_From + newX);
-      // comY_new_From = (1. / (area_old_From+1.)) * (comY_old_From * area_old_From + newY);
+        dEAct = - p * ( \
+        n_x[sigmaFrom] * (comX_new_From - comX_old_From) + \
+        n_y[sigmaFrom] * (comY_new_From - comY_old_From) + \
+        n_x[sigmaInto] * (comX_new_Into - comX_old_Into) + \
+        n_y[sigmaInto] * (comY_new_Into - comY_old_Into) );
+      } else {
+        comX_new_Into = comX[sigmaInto];
+        comY_new_Into = comY[sigmaInto];
+        // although sigmaInto == sigmaFrom here
+        comX_new_From = comX[sigmaFrom];
+        comY_new_From = comY[sigmaFrom];
 
-      comX_new_From = (comX_old_From * area_old_From + area_att * newX) / (area_old_From + area_att);
-      comY_new_From = (comY_old_From * area_old_From + area_att * newY) / (area_old_From + area_att);
-
-      dEAct = - p * ( \
-      n_x[sigmaFrom] * (comX_new_From - comX_old_From) + \
-      n_y[sigmaFrom] * (comY_new_From - comY_old_From) + \
-      n_x[sigmaInto] * (comX_new_Into - comX_old_Into) + \
-      n_y[sigmaInto] * (comY_new_Into - comY_old_Into) );
+        dEAct = 0;
+        }
       // for dEAct
       
       // for dEArea
-      // if (sigmaFrom*sigmaInto > 0)
-      //   {dEArea = 2.0 * Lambda * latticeArea[indAttInto] * (latticeArea[indAttInto] + cellArea[sigmaFrom] - cellArea[sigmaInto]);}
-      // else if (sigmaInto==0)
-      //   {dEArea =  Lambda * latticeArea[indAttInto] * (latticeArea[indAttInto] + 2 * ( cellArea[sigmaFrom] - AvgCellArea));}
-      // else if (sigmaFrom==0)
-      //   {dEArea =  Lambda * latticeArea[indAttInto] * (latticeArea[indAttInto] - 2 * ( cellArea[sigmaInto] - AvgCellArea));}
-
       if (sigmaFrom*sigmaInto > 0)
-        {dEArea = 2.0 * Lambda * area_att * (area_att + area_old_From - area_old_Into);}
+        {
+          // dEArea = 2.0 * Lambda * area_att * (area_att + area_old_From - area_old_Into); // without compartment
+
+          // // with compartment; detailed:
+          // dEArea = - Lambda * pow(            compartArea[sigmaInto][compartOld] - avgArea[compartOld], 2) \
+          //          + Lambda * pow(-area_att + compartArea[sigmaInto][compartOld] - avgArea[compartOld], 2) \
+          //          - Lambda * pow(            compartArea[sigmaFrom][compartNew] - avgArea[compartNew], 2) \
+          //          + Lambda * pow(+area_att + compartArea[sigmaFrom][compartNew] - avgArea[compartNew], 2) ;
+
+          // with compartment; simplified: (calculations in the notebook)
+          dEArea = 2 * Lambda * area_att * ( area_att \
+          -compartArea[sigmaInto][compartOld] + avgArea[compartOld] \
+          +compartArea[sigmaFrom][compartNew] - avgArea[compartNew] );
+        }
       else if (sigmaInto==0)
-        {dEArea =  Lambda * area_att * (area_att + 2 * ( area_old_From - AvgCellArea));}
+        {
+          // dEArea =  Lambda * area_att * (area_att + 2 * ( area_old_From - AvgCellArea));
+          // correct this case later
+        }
       else if (sigmaFrom==0)
-        {dEArea =  Lambda * area_att * (area_att - 2 * ( area_old_Into - AvgCellArea));}
+        {
+          // dEArea =  Lambda * area_att * (area_att - 2 * ( area_old_Into - AvgCellArea));
+          // correct this case later
+        }
       // for dEArea
 
-      // dEAct = ;
+
 
       // dE = dE_inter + dE_area + dE_act;
       dE = dEInter + dEArea + dEAct;
