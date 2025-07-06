@@ -671,6 +671,7 @@ void no_LL()
       singleInitializer(mt_rand, sigmaMat, sitesX, sitesY, \
                   siteComX, siteComY, NumCells, AvgCellArea, Lx, Ly);
     }
+    
     else
     {
       cout << "Please correct initConfig in simulationData_vec.csv"<<endl;

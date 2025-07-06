@@ -51,6 +51,11 @@ using namespace std::chrono;
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////// PROTOTYPES //////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
+void readCompartData(
+    const std::string& filename,
+    std::vector<double>& avgAreaFrac,
+    std::vector<std::vector<double>>& J_int,
+    std::vector<std::vector<double>>& J_ext);
 
 void dataFolderDeleter();
 
@@ -131,7 +136,7 @@ int main()
 
     int NSites;
     double Lx, Ly;
-    double Alpha;
+    double Alpha = 0.0 / 0.0; // I want it to be NaN, because J matrices include the information
     double Kb;
     double Tem;
     int NumCells;
@@ -145,8 +150,22 @@ int main()
     string initConfig; // "r" for rectangular; "c" for crystalline;
     
     simulationDataReader(&NSites, &Lx, &Ly, &Alpha, &Kb, &Tem,  &NumCells, \
-                        &AvgCellArea, &Lambda, &maxMCSteps, &samplesPerWrite, &printingTimeInterval, &numLinkedList, &initConfig);
+                       &AvgCellArea, &Lambda, &maxMCSteps, &samplesPerWrite, &printingTimeInterval, &numLinkedList, &initConfig);
     SweepLength = NSites;
+    
+    // Reading compartments data //
+    std::vector<double> avgAreaFrac;
+    std::vector<std::vector<double>> J_int, J_ext;
+    readCompartData("compart_params.txt", avgAreaFrac, J_int, J_ext);
+    int NComparts = avgAreaFrac.size();
+    vector<double> avgArea(NComparts);
+    for (int i = 0; i < NComparts; i++)
+    {
+      // average area of each compartment
+      // 0= cytoplasm ; 1= Fz; 2= Vang;
+      avgArea[i] = avgAreaFrac[i] * AvgCellArea;
+    }
+    // Reading compartments data //
 
     ////////////////////////////////////////////////////
     /////////////////// LATTICE READING ////////////////
@@ -262,8 +281,6 @@ int main()
       tDummy = time[indDummy];
     }
     int eqSamplingTimesC = 0; // counter
-    
-    
     ////////// EQ SAMPLING TIMES /////////////////////
 
 
@@ -287,6 +304,7 @@ int main()
     vector<int> sigmaMat(NSites); // The main field of spins
     vector<double> sitesX(NSites); // The value of the X(t) of each site
     vector<double> sitesY(NSites); // The value of the Y(t) of each site
+    vector<int> compartMat(NSites); // The compartments of cells
 
     // int areaSample[NumCells+1];
     // int periSample[NumCells+1];
@@ -343,6 +361,7 @@ int main()
     
 
     loadInt1DVec(sigmaMat, "init/sigma_init.csv");
+    loadInt1DVec(compartMat, "init/compart_init.csv");
     loadDbl1DVec(sitesX,   "init/sitesX_init.csv");
     loadDbl1DVec(sitesY,   "init/sitesY_init.csv");
 
@@ -765,7 +784,7 @@ int main()
 
     /////////////// Python part of pp ////////////////
     // system("python3 pp_irr_v16.py");
-    system("python3 pp_py_gen_v0.py");
+    // system("python3 pp_py_gen_v0.py");
     /////////////// Python part of pp ////////////////
     
     ///// Re-deleting the data folder /////
@@ -2103,6 +2122,88 @@ void S_h_calculator(const vector<double>& xComSample, const vector<double>& yCom
     }
     
 
+}
+//
+void readCompartData(
+    const std::string& filename,
+    std::vector<double>& avgAreaFrac,
+    std::vector<std::vector<double>>& J_int,
+    std::vector<std::vector<double>>& J_ext
+) {
+    std::ifstream in(filename);
+    if (!in) {
+        throw std::runtime_error("Cannot open " + filename);
+    }
+
+    std::string line;
+
+    // 1) Read avgAreaFrac until "#"
+    avgAreaFrac.clear();
+    std::getline(in, line); // skip the name of matrix
+    while (std::getline(in, line)) {
+        if (line == "#") break;
+        if (line.empty()) continue;
+        avgAreaFrac.push_back(std::stod(line));
+    }
+    int N = int(avgAreaFrac.size());
+    if (N == 0) {
+        throw std::runtime_error("No data in first block");
+    }
+
+    // prepare matrices
+    J_int.assign(N, std::vector<double>(N, 0.0));
+    J_ext.assign(N, std::vector<double>(N, 0.0));
+
+    // 2) Read J_int (lower‐triangle ragged form)
+    // skip blank or "#"
+    while (std::getline(in, line)) {
+        if (line.empty() || line == "#") continue;
+        else break;
+    }
+    std::getline(in, line); // skip the name of matrix
+    // line now has row 0
+    {
+        std::istringstream ss(line);
+        double v0;
+        ss >> v0;
+        J_int[0][0] = v0;
+    }
+    for (int i = 1; i < N; ++i) {
+        std::getline(in, line);
+        std::istringstream ss(line);
+        for (int j = 0; j <= i; ++j) {
+            double v;
+            ss >> v;
+            J_int[i][j] = v;
+            J_int[j][i] = v;
+        }
+    }
+
+    // 3) Read J_ext
+    // skip blank or "#"
+    while (std::getline(in, line)) {
+        if (line.empty() || line == "#") continue;
+        else break;
+        
+    }
+    std::getline(in, line); // skip the name of matrix
+    // line now has row 0
+    {
+        std::istringstream ss(line);
+        double v0;
+        ss >> v0;
+        J_ext[0][0] = v0;
+    }
+    for (int i = 1; i < N; ++i) {
+        std::getline(in, line);
+        std::istringstream ss(line);
+        for (int j = 0; j <= i; ++j) {
+            double v;
+            ss >> v;
+            J_ext[i][j] = v;
+            J_ext[j][i] = v;
+        }
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////

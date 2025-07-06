@@ -29,7 +29,65 @@ class eqSamplingTimesClass:
     sampleCList = []
     bunchCList = []
     
+
+def read_comparts_info(filepath):
+    """
+    Reads a file defining a vector and two symmetric matrices in a block format.
+
+    The file format must have three blocks:
+      - AvgAreaFrac: a column of floats ending with a line containing '#'
+      - J_int: lower-triangular rows of a symmetric matrix ending with '#'
+      - J_ext: same as J_int for another matrix
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the text file.
+
+    Returns
+    -------
+    tuple
+        - vector : np.ndarray of shape (n,)
+        - J_int  : np.ndarray of shape (n, n)
+        - J_ext  : np.ndarray of shape (n, n)
+    """
+    # Parse blocks
+    blocks = {}
+    with open(filepath, 'r') as f:
+        lines = [line.strip() for line in f if line.strip()]
+
+    i = 0
+    while i < len(lines):
+        name = lines[i]
+        i += 1
+        data = []
+        while i < len(lines) and lines[i] != '#':
+            parts = lines[i].split()
+            data.append([float(p) for p in parts])
+            i += 1
+        # Skip the '#' delimiter
+        i += 1
+        blocks[name] = data
+
+    # Extract vector
+    vector = np.array([row[0] for row in blocks['AvgAreaFrac']], dtype=float)
+
+    # Helper to build full symmetric matrix from lower-triangular rows
+    def build_symmetric(lower_rows):
+        n = len(lower_rows)
+        M = np.zeros((n, n), dtype=float)
+        for r, row in enumerate(lower_rows):
+            for c, val in enumerate(row):
+                M[r, c] = val
+                M[c, r] = val
+        return M
+
+    J_int = build_symmetric(blocks['J_int'])
+    J_ext = build_symmetric(blocks['J_ext'])
     
+    avgAreaFrac = vector.copy()
+    
+    return avgAreaFrac, J_int, J_ext
 
 ppDataFolderName = 'pp_data'
 ppPlotFolderName = 'pp_plot'
@@ -41,39 +99,44 @@ try:
     NSites                      = int(  simulationData[0][-1])
     Lx                          = float(  simulationData[1][-1])
     Ly                          = float(  simulationData[2][-1])
-    Alpha                       = float(simulationData[3][-1])
-    Kb                          = float(simulationData[4][-1])
-    Tem                         = float(simulationData[5][-1])
-    NumCells                    = int(  simulationData[6][-1])
-    AvgCellArea                 = float(simulationData[7][-1])
-    Lambda                      = float(simulationData[8][-1])
+    # Alpha                       = float(simulationData[3][-1])
+    Kb                          = float(simulationData[3][-1])
+    Tem                         = float(simulationData[4][-1])
+    NumCells                    = int(  simulationData[5][-1])
+    AvgCellArea                 = float(simulationData[6][-1])
+    Lambda                      = float(simulationData[7][-1])
     # SweepLength                 = int(  simulationData[7][-1])
     SweepLength                 = NSites
-    MaxMCSteps                  = int(  simulationData[10][-1])
+    MaxMCSteps                  = int(  simulationData[9][-1])
     # MaxMCSteps                  = int(np.loadtxt('maxMCSteps.csv', dtype=int))
-    samplesPerWrite             = int(  simulationData[11][-1])
+    samplesPerWrite             = int(  simulationData[10][-1])
     
     lattice_switch = 'irr'
     
+    avgAreaFrac, J_int, J_ext = read_comparts_info('compart_params.txt')
+    
+    avgArea = AvgCellArea * avgAreaFrac
+    
 except:
     
-    L                           = int(  simulationData[0][-1])
-    Alpha                       = float(simulationData[1][-1])
-    Kb                          = float(simulationData[2][-1])
-    Tem                         = float(simulationData[3][-1])
-    NumCells                    = int(  simulationData[4][-1])
-    AvgCellArea                 = float(simulationData[5][-1])
-    Lambda                      = float(simulationData[6][-1])
-    # SweepLength                 = int(  simulationData[7][-1])
-    SweepLength                 = L*L
-    MaxMCSteps                  = int(  simulationData[8][-1])
-    # MaxMCSteps                  = int(np.loadtxt('maxMCSteps.csv', dtype=int))
-    samplesPerWrite             = int(  simulationData[9][-1])
+    fff = 1
+    # L                           = int(  simulationData[0][-1])
+    # Alpha                       = float(simulationData[1][-1])
+    # Kb                          = float(simulationData[2][-1])
+    # Tem                         = float(simulationData[3][-1])
+    # NumCells                    = int(  simulationData[4][-1])
+    # AvgCellArea                 = float(simulationData[5][-1])
+    # Lambda                      = float(simulationData[6][-1])
+    # # SweepLength                 = int(  simulationData[7][-1])
+    # SweepLength                 = L*L
+    # MaxMCSteps                  = int(  simulationData[8][-1])
+    # # MaxMCSteps                  = int(np.loadtxt('maxMCSteps.csv', dtype=int))
+    # samplesPerWrite             = int(  simulationData[9][-1])
     
-    Lx = L
-    Ly = L
+    # Lx = L
+    # Ly = L
     
-    lattice_switch = 'sq'
+    # lattice_switch = 'sq'
 
 
 # equilibration sampling times
@@ -237,7 +300,7 @@ def distributionFunc(quantity_name):
         plt.axvline(x=min_val, linestyle='dashed', color='k', linewidth=0.5)
         plt.axvline(x=max_val, linestyle='dashed', color='k', linewidth=0.5)
         plt.axhline(y=0, linestyle='dashed', color='k', linewidth=1)
-        plt.title(r"$\alpha = $"+str(Alpha)+"\n Avg: "+str(round(np.mean(total_data), 3))+", N_tot = "+str(np.shape(dist_eq)[1])+"*"+str(NumCells)+" = "+str(np.shape(dist_eq)[1]*NumCells))
+        # plt.title(r"$\alpha = $"+str(Alpha)+"\n Avg: "+str(round(np.mean(total_data), 3))+", N_tot = "+str(np.shape(dist_eq)[1])+"*"+str(NumCells)+" = "+str(np.shape(dist_eq)[1]*NumCells))
         plt.savefig(ppPlotFolderName+"/"+quantity_name+"_freq_eq.PNG", dpi = 300)
         # plt.show()
     
@@ -506,7 +569,7 @@ def cellsPlotterCSV(sigmaMat, savePlotAddress, saveSwitch):
         
     return
 
-def cellsPlotterIrr(sigmaMat, savePlotAddress, saveSwitch, cmap, com_switch, xCom_instant, yCom_instant):
+def cellsPlotterIrr(sigmaMat, compartMat,  savePlotAddress, saveSwitch, cmap, com_switch, xCom_instant, yCom_instant):
     
     plt.figure()
     
@@ -551,7 +614,12 @@ def cellsPlotterIrr(sigmaMat, savePlotAddress, saveSwitch, cmap, com_switch, xCo
     margin = 2*length_scale
     edge_plot_check = [] #a list of sets containing the indices of sites
     for i in range(NSites):
-        color = cmap(norm(values[i]))
+        if compartMat[i] == 0:
+            color = cmap(norm(values[i]))
+        elif compartMat[i] == 1:
+            color = 'grey'
+        elif compartMat[i] == 2:
+            color = 'yellow'
         main_points = polygons[i]
         points = main_points.copy()
         hull = ConvexHull(points)    
@@ -1063,40 +1131,90 @@ def trajectoriesV2(saveSwitch):
     
     
     
-    ############################ AVGR2 PLOT ##########################    
-    # x_w = xCom[:, t_w_ind]
-    # y_w = yCom[:, t_w_ind]
+    # ############################ AVGR2 PLOT ##########################    
+    # # x_w = xCom[:, t_w_ind]
+    # # y_w = yCom[:, t_w_ind]
     
-    # deltaX = 0.0*xCom
-    # deltaY = 0.0*yCom
-    # deltaR2 = 0.0*xCom
-    deltaT = 0*(time)
+    # # deltaX = 0.0*xCom
+    # # deltaY = 0.0*yCom
+    # # deltaR2 = 0.0*xCom
+    # deltaT = 0*(time)
     
-    for snapshotC in range(len(time)):
+    # for snapshotC in range(len(time)):
         
-        t = time[snapshotC]
+    #     t = time[snapshotC]
         
-        if (t>=t_w):
+    #     if (t>=t_w):
             
-            deltaT[snapshotC]=t-t_w
+    #         deltaT[snapshotC]=t-t_w
             
-            # deltaX[:,snapshotC] = xCom[:,snapshotC]-x_w[:]
-            # deltaY[:,snapshotC] = yCom[:,snapshotC]-y_w[:]
+    #         # deltaX[:,snapshotC] = xCom[:,snapshotC]-x_w[:]
+    #         # deltaY[:,snapshotC] = yCom[:,snapshotC]-y_w[:]
             
-            # deltaR2[:,snapshotC] = (deltaX[:,snapshotC])**2 + (deltaY[:,snapshotC])**2
+    #         # deltaR2[:,snapshotC] = (deltaX[:,snapshotC])**2 + (deltaY[:,snapshotC])**2
     
-    msdAvgStd = np.loadtxt(ppDataFolderName+'/msdAvgStd.csv',  delimiter=',')
-    # deltaR2Avg = np.mean(deltaR2[1:,:], axis = 0)
-    # deltaR2Std = np.std( deltaR2[1:,:], axis = 0)
-    deltaR2Avg = msdAvgStd[0,:]
-    deltaR2Std = msdAvgStd[1,:]
+    # msdAvgStd = np.loadtxt(ppDataFolderName+'/msdAvgStd.csv',  delimiter=',')
+    # # deltaR2Avg = np.mean(deltaR2[1:,:], axis = 0)
+    # # deltaR2Std = np.std( deltaR2[1:,:], axis = 0)
+    # deltaR2Avg = msdAvgStd[0,:]
+    # deltaR2Std = msdAvgStd[1,:]
     
-    # np.savetxt(ppDataFolderName+'/'+'deltaT.csv', deltaT, fmt='%9d', delimiter=',')
-    # np.savetxt(ppDataFolderName+'/'+'deltaX.csv', deltaX, fmt='%9.2f', delimiter=',')
-    # np.savetxt(ppDataFolderName+'/'+'deltaY.csv', deltaY, fmt='%9.2f', delimiter=',')
-    # np.savetxt(ppDataFolderName+'/'+'deltaR2.csv', deltaR2, fmt='%9.2f', delimiter=',')
-    # np.savetxt(ppDataFolderName+'/'+'deltaR2Avg.csv', deltaR2Avg, fmt='%9.2f', delimiter=',')
-    # np.savetxt(ppDataFolderName+'/'+'deltaR2Std.csv', deltaR2Std, fmt='%9.2f', delimiter=',')
+    # # np.savetxt(ppDataFolderName+'/'+'deltaT.csv', deltaT, fmt='%9d', delimiter=',')
+    # # np.savetxt(ppDataFolderName+'/'+'deltaX.csv', deltaX, fmt='%9.2f', delimiter=',')
+    # # np.savetxt(ppDataFolderName+'/'+'deltaY.csv', deltaY, fmt='%9.2f', delimiter=',')
+    # # np.savetxt(ppDataFolderName+'/'+'deltaR2.csv', deltaR2, fmt='%9.2f', delimiter=',')
+    # # np.savetxt(ppDataFolderName+'/'+'deltaR2Avg.csv', deltaR2Avg, fmt='%9.2f', delimiter=',')
+    # # np.savetxt(ppDataFolderName+'/'+'deltaR2Std.csv', deltaR2Std, fmt='%9.2f', delimiter=',')
+    
+    
+    # plt.figure()
+    # plt.xlabel(r'$t-t_w$'+' (MCS)')
+    # plt.ylabel(r'$\langle r^2 \rangle$')
+    # plt.grid()
+
+    # x_plot = deltaT[t_w_ind+1:]
+    # y_plot = deltaR2Avg[t_w_ind+1:]
+    # y_plot_err = deltaR2Std[t_w_ind+1:]/np.sqrt(NumCells)
+    # plt.errorbar(x_plot, y_plot, yerr=y_plot_err, fmt="o", markersize =0.8, elinewidth=0.2, label='MSD', zorder=1)
+    
+    # b = deltaR2Avg[t_w_ind+1]/deltaT[t_w_ind+1]
+    # y_plot_supposed = b*x_plot
+    # plt.plot(x_plot, y_plot_supposed, zorder=2, color='k', linestyle='dashed')
+    
+    # # plt.scatter(x_plot, y_plot, label='MSD', c='black', s=0.4)
+    # plt.xscale("log")
+    # plt.yscale("log")
+    # plt.legend()
+    
+    # if saveSwitch:
+    #     plt.savefig(ppPlotFolderName+'/'+'avgR2.png',dpi=dpiRes)
+        
+    # ############################ AVGR2 PLOT ##########################
+    
+    
+    ############################ newMSD PLOT ##########################    
+    
+    x_plot = []
+    y_plot = []
+    y_plot_err = []
+    
+    with open(ppDataFolderName+'/newMSD.csv', 'r') as newMSD:
+        # Iterate through each line in the file
+        for line in newMSD:
+            # Strip any leading/trailing whitespace (including newline characters)
+            line = line.strip()
+            # Split the line using ':' as the delimiter
+            parts = line.split(':')
+            dt = int(parts[0])
+            num_list = parts[1].split(',')
+            num_list = [float(num) for num in num_list]
+            datapoints = np.array(num_list)
+            
+            x_plot.append(dt)
+            y_plot.append(np.mean(datapoints))
+            y_plot_err.append(np.std(datapoints)/np.sqrt(len(datapoints)))
+            #y_plot_err.append(np.std(datapoints))
+            
     
     
     plt.figure()
@@ -1104,12 +1222,13 @@ def trajectoriesV2(saveSwitch):
     plt.ylabel(r'$\langle r^2 \rangle$')
     plt.grid()
 
-    x_plot = deltaT[t_w_ind+1:]
-    y_plot = deltaR2Avg[t_w_ind+1:]
-    y_plot_err = deltaR2Std[t_w_ind+1:]/np.sqrt(NumCells)
-    plt.errorbar(x_plot, y_plot, yerr=y_plot_err, fmt="o", markersize =0.8, elinewidth=0.2, label='MSD', zorder=1)
+    x_plot = np.array(x_plot)
+    y_plot = np.array(y_plot)
+    y_plot_err = np.array(y_plot_err)
+    plt.errorbar(x_plot, y_plot, yerr=y_plot_err, fmt="o", markersize =0.8, elinewidth=0.4, label='MSD', zorder=1, ecolor='c')
     
-    b = deltaR2Avg[t_w_ind+1]/deltaT[t_w_ind+1]
+    # b = deltaR2Avg[t_w_ind+1]/deltaT[t_w_ind+1]
+    b = y_plot[0]/x_plot[0]
     y_plot_supposed = b*x_plot
     plt.plot(x_plot, y_plot_supposed, zorder=2, color='k', linestyle='dashed')
     
@@ -1120,8 +1239,8 @@ def trajectoriesV2(saveSwitch):
     
     if saveSwitch:
         plt.savefig(ppPlotFolderName+'/'+'avgR2.png',dpi=dpiRes)
-        
-    ############################ AVGR2 PLOT ##########################
+    
+    ############################ newMSD PLOT ##########################    
     
     
     ############################ AVGR2_T_0 PLOT ##########################    
@@ -1813,7 +1932,10 @@ def orderParametersFunc_Irr(saveSwitch):
                 plt.ylabel('X')
                 plt.grid(linewidth=0.2)
                 plt.axis('equal')
-                title = 'Hexatic order; '+r'$\alpha = $'+str(Alpha)+'\n' \
+                # title = 'Hexatic order; '+r'$\alpha = $'+str(Alpha)+'\n' \
+                # +r'$t = $'+str(t)+' , '\
+                # +r'$\langle \psi_6 \rangle=$'+str(np.floor((10**n_digits)*snapshotsHexAbsAvg[t_c])/(10**n_digits))
+                title = 'Hexatic order; '+'\n' \
                 +r'$t = $'+str(t)+' , '\
                 +r'$\langle \psi_6 \rangle=$'+str(np.floor((10**n_digits)*snapshotsHexAbsAvg[t_c])/(10**n_digits))
                 plt.title(title)
@@ -1841,7 +1963,10 @@ def orderParametersFunc_Irr(saveSwitch):
                 plt.ylabel('X')
                 plt.grid(linewidth=0.2)
                 plt.axis('equal')
-                title = 'Hexatic order; '+r'$\alpha = $'+str(Alpha)+'\n' \
+                # title = 'Hexatic order; '+r'$\alpha = $'+str(Alpha)+'\n' \
+                # +r'$t = $'+str(t)+' , '\
+                # +r'$\langle \psi_6 \rangle=$'+str(np.floor((10**n_digits)*snapshotsHexAbsAvg[t_c])/(10**n_digits))
+                title = 'Hexatic order; '+'\n' \
                 +r'$t = $'+str(t)+' , '\
                 +r'$\langle \psi_6 \rangle=$'+str(np.floor((10**n_digits)*snapshotsHexAbsAvg[t_c])/(10**n_digits))
                 plt.title(title)
@@ -1910,7 +2035,7 @@ def orderParametersFunc_Irr(saveSwitch):
         cmap = plt.get_cmap(freudcmap)
         # cmap = 'freudcmap'
         plt.figure()
-        cellsPlotterIrr(sigmaHex, ppPlotFolderName+'/advancedHex.png' , 1, cmap, 1, xCom[:,-1], yCom[:,-1])
+        cellsPlotterIrr(sigmaHex, 0*sigmaHex, ppPlotFolderName+'/advancedHex.png' , 1, cmap, 1, xCom[:,-1], yCom[:,-1])
 
     
     # plt.figure()
@@ -2161,18 +2286,20 @@ cmap = plt.get_cmap('rainbow')
 
 if plot_switches_dict['init']:
     print('cellsPlotter (init) : running...')
-    initial_config = np.loadtxt(initFolderName+'/sigma_init.csv',  delimiter=',', dtype=int)
+    initial_config  = np.loadtxt(initFolderName+'/sigma_init.csv',  delimiter=',', dtype=int)
+    initial_compart = np.loadtxt(initFolderName+'/compart_init.csv',  delimiter=',', dtype=int)
     if lattice_switch == 'irr':
-        cellsPlotterIrr(initial_config, ppPlotFolderName+'/initial_config.png' , 1, cmap, 1, xCom[:,0], yCom[:,0])
+        cellsPlotterIrr(initial_config, initial_compart, ppPlotFolderName+'/initial_config.png' , 1, cmap, 1, xCom[:,0], yCom[:,0])
     elif lattice_switch == 'sq':
         cellsPlotterCSV(initial_config, ppPlotFolderName+'/initial_config.png' , 1)
     print('cellsPlotter (init) : done.')
 
 if plot_switches_dict['final']:
     print('cellsPlotter (final) : running...')
-    final_config = np.loadtxt(mainResumeFolderName+'/sigmaMatLS.csv',  delimiter=',', dtype=int)
+    final_config  = np.loadtxt(mainResumeFolderName+'/sigmaMatLS.csv',  delimiter=',', dtype=int)
+    final_compart = np.loadtxt(mainResumeFolderName+'/compartMatLS.csv',  delimiter=',', dtype=int)
     if lattice_switch == 'irr':
-        cellsPlotterIrr(final_config, ppPlotFolderName+'/final_config.png' , 1, cmap, 1, xCom[:,-1], yCom[:,-1])
+        cellsPlotterIrr(final_config, final_compart, ppPlotFolderName+'/final_config.png' , 1, cmap, 1, xCom[:,-1], yCom[:,-1])
     elif lattice_switch == 'sq':
         cellsPlotterCSV(final_config, ppPlotFolderName+'/final_config.png' , 1)
     print('cellsPlotter (final) : done.')
@@ -2217,9 +2344,9 @@ temporalHex(1)
 print('temporalHex : done')
 # trajectoriesPlot(1)
 
-
-print('g(r) : running...')
-# temporalPlots(1)
-g_of_r(1)
-print('g(r) : done')
-
+#
+#print('g(r) : running...')
+## temporalPlots(1)
+#g_of_r(1)
+#print('g(r) : done')
+#
