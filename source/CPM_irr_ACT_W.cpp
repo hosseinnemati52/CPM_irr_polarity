@@ -389,8 +389,7 @@ void no_LL()
   }
   cellArea[0] = 0;
   
-
-  vector<vector<double>> areaSamples(NumCells + 1, vector<double>(samplesPerWrite));
+  vector<vector<double>> areaSamples(NumCells + 1, vector<double>(samplesPerWrite)); // samples for
   for (int i=0; i<samplesPerWrite; i++)
   {
     areaSamples[0][i]=0;
@@ -399,7 +398,13 @@ void no_LL()
   cellSiteNum[0] = 0;                    // the index 1 to NumCells, inclusive)
 
   vector<double> cellAreaTest(NumCells + 1); // The array showing the area of each cell (NOTE: values are from
-  cellAreaTest[0] = 0;                       // the index 1 to NumCells, inclusive)
+                                            // the index 1 to NumCells, inclusive)
+  vector<vector<double>> compartAreaTest(NumCells + 1, vector<double>(NComparts)); // The array showing the area of each compartment (for test)
+  for (int compart_c = 0; compart_c < NComparts; compart_c++) // index 0 is for the void space (which we dont have here)
+  {
+    compartAreaTest[0][compart_c] = 0;
+  }
+  cellAreaTest[0] = 0; 
 
   vector<int> cellSiteNumTest(NumCells + 1); // The array showing the number of occupied sites by each cell (NOTE: values are from
   cellSiteNumTest[0] = 0;                    // the index 1 to NumCells, inclusive)
@@ -841,6 +846,7 @@ void no_LL()
   timeLoopFlag=0;
 
   struct Energy E_test;
+  struct Energy E_test_2;
   // double E_test_eps = 0.01*Alpha;
   double E_test_eps;
   double dE_eps;
@@ -911,7 +917,7 @@ void no_LL()
       compartOld = compartMat[indAttInto];
       compartNew = (mt_rand()) % NComparts; // candidate for the compart of Into, in copying
 
-      if (indAttInto==indAttFrom && compartOld==compartNew) 
+      if (sigmaInto==sigmaFrom && compartOld==compartNew) 
       {// the same cell, the same compartment. Nothing to update
         break;
       } // Otherwise, updates must be done
@@ -941,13 +947,13 @@ void no_LL()
       
       comX_old_Into = comX[sigmaInto];
       comY_old_Into = comY[sigmaInto];
-      // area_old_Into = cellArea[sigmaInto];
+      area_old_Into = cellArea[sigmaInto];
 
       comX_old_From = comX[sigmaFrom];
       comY_old_From = comY[sigmaFrom];
-      // area_old_From = cellArea[sigmaFrom];
+      area_old_From = cellArea[sigmaFrom];
       
-      if (diff_cells_key_att) {
+      if (diff_cells_key_att) { // different cells
         comX_new_Into = (comX_old_Into * area_old_Into - area_att * sitesX[indAttInto]) / (area_old_Into - area_att);
         comY_new_Into = (comY_old_Into * area_old_Into - area_att * sitesY[indAttInto]) / (area_old_Into - area_att);
 
@@ -962,10 +968,15 @@ void no_LL()
         n_y[sigmaFrom] * (comY_new_From - comY_old_From) + \
         n_x[sigmaInto] * (comX_new_Into - comX_old_Into) + \
         n_y[sigmaInto] * (comY_new_Into - comY_old_Into) );
-      } else {
+
+      } else { // the same cell
         comX_new_Into = comX[sigmaInto];
         comY_new_Into = comY[sigmaInto];
         // although sigmaInto == sigmaFrom here
+        
+        newX = sitesX[indAttInto]; //BE CAREFUL: 'neighIndCFromInto' is the index of 'indAttFrom' among the list of the neighbors of 'indAttInto'.
+        newY = sitesY[indAttInto]; //BE CAREFUL: 'neighIndCFromInto' is the index of 'indAttFrom' among the list of the neighbors of 'indAttInto'.
+
         comX_new_From = comX[sigmaFrom];
         comY_new_From = comY[sigmaFrom];
 
@@ -1006,6 +1017,11 @@ void no_LL()
       // dE = dE_inter + dE_area + dE_act;
       dE = dEInter + dEArea + dEAct;
 
+      // E_test = energyCalcCompart(sigmaMat, compartMat, J_int, J_ext,
+      //                       neighborsList, neighborNum, edges, avgEdge, 
+      //                       compartArea, Lambda, avgArea, NumCells, 
+      //                       p, theta, comX, comY);
+
       if (  (dE < dE_eps) || ((((long double)(mt_rand())-MT_MIN)/((long double)MT_MAX-MT_MIN)) < 
                   exp(-dE/(Tem*Kb)) )   )
       {
@@ -1014,15 +1030,16 @@ void no_LL()
         
 
         // Area update
-        // cellArea[sigmaFrom] += latticeArea[indAttInto];
-        // cellArea[sigmaInto] -= latticeArea[indAttInto];
         cellArea[sigmaFrom] += area_att;
         cellArea[sigmaInto] -= area_att;
         cellSiteNum[sigmaFrom]++;
         cellSiteNum[sigmaInto]--;
+        compartArea[sigmaFrom][compartNew] += area_att;
+        compartArea[sigmaInto][compartOld] -= area_att;
         
         //sigmaMat update
         sigmaMat[indAttInto] = sigmaFrom;
+        compartMat[indAttInto] = compartNew;
 
         // E_test = wholeSystemEnergyCalc(sigmaMat, neighborsList, neighborNum, cellArea, Alpha, Lambda, AvgCellArea);
 
@@ -1031,20 +1048,6 @@ void no_LL()
         comY[sigmaInto] = comY_new_Into;
 
         // siteXY update
-        // neighIndC = 0;
-        // while (indAttInto != neighborsList[indAttFrom][neighIndC])
-        // {
-        //   neighIndC++;
-        // }
-        // sitesX[indAttInto] = sitesX[indAttFrom] + deltaComX[indAttFrom][neighIndC];
-        // sitesY[indAttInto] = sitesY[indAttFrom] + deltaComY[indAttFrom][neighIndC];
-
-        // sitesX[indAttInto] = sitesX[indAttFrom] + deltaComX[indAttFrom][neighIndCFromInto];
-        // sitesY[indAttInto] = sitesY[indAttFrom] + deltaComY[indAttFrom][neighIndCFromInto];
-
-
-        // sitesX[indAttInto] = sitesX[indAttFrom] - deltaComX[indAttInto][neighIndCFromInto];
-        // sitesY[indAttInto] = sitesY[indAttFrom] - deltaComY[indAttInto][neighIndCFromInto];
         sitesX[indAttInto] = newX;
         sitesY[indAttInto] = newY;
 
@@ -1052,6 +1055,21 @@ void no_LL()
         comX[sigmaFrom] = comX_new_From;
         comY[sigmaFrom] = comY_new_From;
 
+        // E_test_2 = energyCalcCompart(sigmaMat, compartMat, J_int, J_ext,
+        //                     neighborsList, neighborNum, edges, avgEdge, 
+        //                     compartArea, Lambda, avgArea, NumCells, 
+        //                     p, theta, comX, comY);
+
+        // if (abs(E_test_2.inter-E_test.inter - dEInter) > (1e-8))
+        // {
+        //   int ttt =0;
+        // }
+        // if (abs(E_test_2.area-E_test.area - dEArea) > (1e-8))
+        // {
+        //   int ttt =0;
+        // }
+        
+        
       }
     }
 
@@ -1111,6 +1129,7 @@ void no_LL()
       for (siteC = 0; siteC < NSites; siteC++)
       {
         sigmaSamples[siteC][sampleCounter] = sigmaMat[siteC];
+        compartSamples[siteC][sampleCounter] = compartMat[siteC];
         xSamples[siteC][sampleCounter] = floor(sitesX[siteC]/Lx);
         ySamples[siteC][sampleCounter] = floor(sitesY[siteC]/Ly);
       }
@@ -1126,6 +1145,7 @@ void no_LL()
         ///////////////////////// DATA SAVING ///////////////////////
         // writing the center of mass of the cells
         saveIntMatCSV(sigmaSamples, dataFolderName + "/" + "sigmaSamples_" + to_string(writeCounter) + ".csv");
+        saveIntMatCSV(compartSamples, dataFolderName + "/" + "compartSamples_" + to_string(writeCounter) + ".csv");
         // saveDoubleMatCSV(xSamples, dataFolderName + "/" + "xSamples_" + to_string(writeCounter) + ".csv");
         // saveDoubleMatCSV(ySamples, dataFolderName + "/" + "ySamples_" + to_string(writeCounter) + ".csv");
         saveIntMatCSV(xSamples, dataFolderName + "/" + "xSamples_" + to_string(writeCounter) + ".csv");
@@ -1173,6 +1193,7 @@ void no_LL()
 
           // writing the final configuration of the sites
           saveInt1DVec(sigmaMat, loadFolderName+"/"+"sigmaMatLS.csv");
+          saveInt1DVec(compartMat, loadFolderName+"/"+"compartMatLS.csv");
           saveDbl1DVec(sitesX, loadFolderName+"/"+"sitesX_LS.csv");
           saveDbl1DVec(sitesY, loadFolderName+"/"+"sitesY_LS.csv");
 
@@ -1205,7 +1226,11 @@ void no_LL()
         // E_test = wholeSystemEnergyCalc_actPlus(sigmaMat, cellArea, Alpha, Lambda, AvgCellArea, p, theta, comX, comY);
         // E_test = wholeSystemEnergyCalc(sigmaMat, neighborsList, neighborNum, cellArea, Alpha, Lambda, AvgCellArea, NumCells);
         // E_test = wholeSystemEnergyCalc_actPlus(sigmaMat, neighborsList, neighborNum, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX, comY);
-        E_test = wholeSystemEnergyCalc_actPlus_W(sigmaMat, neighborsList, neighborNum, edges, avgEdge, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX, comY);
+        // E_test = wholeSystemEnergyCalc_actPlus_W(sigmaMat, neighborsList, neighborNum, edges, avgEdge, cellArea, Alpha, Lambda, AvgCellArea, NumCells, p, theta, comX, comY);
+        E_test = energyCalcCompart(sigmaMat, compartMat, J_int, J_ext,
+                            neighborsList, neighborNum, edges, avgEdge, 
+                            compartArea, Lambda, avgArea, NumCells, 
+                            p, theta, comX, comY);
 
         if (fabs(E_test.total-E)>E_test_eps)
         {
@@ -1229,18 +1254,31 @@ void no_LL()
 
         
         areaCalc(sigmaMat, cellAreaTest, cellSiteNumTest, latticeArea);
+        compartAreaCalc(sigmaMat, compartMat, compartAreaTest, latticeArea);
         int areaFlag = 0;
+        int areaErrorCondition = 0;
+
         for (int cellCTest = 0; cellCTest <= NumCells; cellCTest++)
         {
-          if ( (fabs(cellAreaTest[cellCTest]-cellArea[cellCTest])>(1e-6)) || (fabs(cellSiteNumTest[cellCTest]-cellSiteNum[cellCTest])>(1e-6)))
+          areaErrorCondition += bool(fabs(cellAreaTest[cellCTest]-cellArea[cellCTest])>(1e-6));
+          areaErrorCondition += bool((fabs(cellSiteNumTest[cellCTest]-cellSiteNum[cellCTest])>(1e-6)));
+          for (int compartC = 0; compartC < NComparts; compartC++)
+          {
+            areaErrorCondition += bool(fabs(compartAreaTest[cellCTest][compartC]-compartArea[cellCTest][compartC])>(1e-6));
+          }
+
+          if (areaErrorCondition)
           {
             areaFlag = 1;
 
             ofstream AreaError;
             AreaError.open("AreaError.csv");
-            AreaError << "Area["<<cellCTest<<"]= "<<cellArea[cellCTest];
+            // AreaError << "Area["<<cellCTest<<"]= "<<cellArea[cellCTest];
+            // AreaError << endl;
+            // AreaError << "AreaTest["<<cellCTest<<"]= "<<cellAreaTest[cellCTest];
+            // AreaError.close();
+            AreaError << "Area inconsistency in cell "<<cellCTest;
             AreaError << endl;
-            AreaError << "AreaTest["<<cellCTest<<"]= "<<cellAreaTest[cellCTest];
             AreaError.close();
 
             cout<<"Area calculation inconsistency!"<<endl;
@@ -1248,6 +1286,7 @@ void no_LL()
             cout<<"Program ended!"<<endl;
             exit(0);
           }
+          
         }
         if (areaFlag==0)
         {
