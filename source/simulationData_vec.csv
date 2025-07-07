@@ -11,6 +11,7 @@ maxMCSteps = 100000000
 samplesPerWrite = 50
 printingTimeInterval = 1000000
 numLinkedList = 0
-initConfig = r
+initConfig = p
 ##********  put ONE (and just ONE) space at each side of each "=" ********
 ##********  initConfig: r (rectangular), c (crystalized), s (singleInit) ********
+##********  initConfig: p (provided): provided sigmaMat and compartMat ********

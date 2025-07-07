@@ -97,6 +97,10 @@ bool directoryExists(const std::string& path) {
     return access(path.c_str(), F_OK | R_OK | X_OK) == 0;
 }
 //
+void sitesXsitesYInit(const vector<int>& sigmaMat, vector<double>& sitesX, vector<double>& sitesY, \
+                    const vector<double>& siteComX, const vector<double>& siteComY, \
+                    const int NumCells, const double AvgCellArea, const double Lx, const double Ly);
+//
 void energyEpsilonsFinder(double &E_test_eps, double &dE_eps,\
                           const vector<vector<double>>& J_int,\
                           const vector<vector<double>>& J_ext,\
@@ -639,6 +643,7 @@ void no_LL()
       cout<<"********************"<<endl;
       hexInitializer(sigmaMat, sitesX, sitesY, \
                   siteComX, siteComY, NumCells, AvgCellArea, Lx, Ly);
+      compartInitializer(mt_rand, sigmaMat, compartMat, avgAreaFrac); // initialization of compartments
     }
     
     else if (initConfig.compare("r")==0)
@@ -656,6 +661,7 @@ void no_LL()
 
       recConfluentInitializer(sigmaMat, sitesX, sitesY, \
                   siteComX, siteComY, NumCells, AvgCellArea, Lx, Ly);
+      compartInitializer(mt_rand, sigmaMat, compartMat, avgAreaFrac); // initialization of compartments
       
     }
     else if (initConfig.compare("s")==0)
@@ -671,15 +677,19 @@ void no_LL()
       singleInitializer(mt_rand, sigmaMat, sitesX, sitesY, \
                   siteComX, siteComY, NumCells, AvgCellArea, Lx, Ly);
     }
-    
+    else if (initConfig.compare("p")==0) // provided sigmaMat and compartMat
+    {
+      loadInt1DVec(sigmaMat,   initFolderName+"/"+"sigmaMat_init.csv");
+      loadInt1DVec(compartMat, initFolderName+"/"+"compartMat_init.csv");
+      sitesXsitesYInit(sigmaMat, sitesX, sitesY, \
+                       siteComX, siteComY, NumCells, AvgCellArea, Lx, Ly);
+    }
     else
     {
       cout << "Please correct initConfig in simulationData_vec.csv"<<endl;
       cout << "Program ended!"<<endl;
       exit(0);
     }
-
-    compartInitializer(mt_rand, sigmaMat, compartMat, avgAreaFrac); // initialization of compartments
 
     areaCalc(sigmaMat, cellArea, cellSiteNum, latticeArea);
     compartAreaCalc(sigmaMat, compartMat, compartArea, latticeArea);
@@ -3536,6 +3546,26 @@ void recConfluentInitializer(vector<int>& sigmaMat, vector<double>& sitesX, vect
   //     sigmaMat[siteC] = 0;
   //   }
   // }
+}
+//
+void sitesXsitesYInit(const vector<int>& sigmaMat, vector<double>& sitesX, vector<double>& sitesY, \
+                    const vector<double>& siteComX, const vector<double>& siteComY, \
+                    const int NumCells, const double AvgCellArea, const double Lx, const double Ly)
+{
+  // int L = sigmaMat.size();
+  int NSites = sigmaMat.size();
+
+  int xSite, ySite;
+
+  for (int siteC=0; siteC<NSites; siteC++)
+  {
+    xSite = siteComX[siteC];
+    ySite = siteComY[siteC];
+    
+    sitesX[siteC] = siteComX[siteC];
+    sitesY[siteC] = siteComY[siteC];
+
+  }
 }
 //
 void compartInitializer(std::mt19937 &mt_rand, const vector<int>& sigmaMat, vector<int>& compartMat, const vector<double>& avgAreaFrac)
