@@ -1,17 +1,17 @@
-NSites = 40960
-Lx = 200.1125050340
-Ly = 197.0891324022
+NSites = 4000
+Lx = 63.24555320
+Ly = 63.24555320
 Kb = 1
 Tem = 1
-NumCells = 400
-AvgCellArea = 100
-Lambda = 1.0
+NumCells = 36
+AvgCellArea = 111.111
+Lambda = 0.3
 SweepLength = NSites
 maxMCSteps = 100000000
-samplesPerWrite = 50
+samplesPerWrite = 10
 printingTimeInterval = 1000000
 numLinkedList = 0
-initConfig = p
+initConfig = r
 ##********  put ONE (and just ONE) space at each side of each "=" ********
 ##********  initConfig: r (rectangular), c (crystalized), s (singleInit) ********
 ##********  initConfig: p (provided): provided sigmaMat and compartMat ********

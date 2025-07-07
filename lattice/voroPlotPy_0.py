@@ -16,8 +16,7 @@ rng = np.random.default_rng()
 points = np.loadtxt("test.dat", delimiter=' ')
 
 LxLy = np.loadtxt("LxLy.dat", dtype=float, delimiter=' ')
-Lx = LxLy[0]
-Ly = LxLy[1]
+L = LxLy[0]
 
 total_points = points.copy()
 
@@ -29,8 +28,8 @@ for copy_counter in range(0,len(copy_direction_list)):
     
     copy_points = points.copy()
     
-    copy_points[:,0] += Lx*copy_dir[0]
-    copy_points[:,1] += Ly*copy_dir[1]
+    copy_points[:,0] += L*copy_dir[0]
+    copy_points[:,1] += L*copy_dir[1]
     
     total_points = np.concatenate((total_points, copy_points), axis=0)
 
@@ -59,14 +58,14 @@ voronoi_plot_2d(vor, show_vertices=False, line_colors='orange',
 # L = 10  # Example limit value
 # plt.xlim(-L, 2*L)
 # plt.ylim(-L, 2*L)
-plt.xlim(0, Ly)
-plt.ylim(0, Lx)
+plt.xlim(0, L)
+plt.ylim(0, L)
 plt.gca().invert_yaxis()
 
-plt.plot([0,0],[0,Lx],linestyle='dashed', linewidth=0.6, color='black')
-plt.plot([0,Ly],[0,0],linestyle='dashed', linewidth=0.6, color='black')
-plt.plot([0,Ly],[Lx,Lx],linestyle='dashed', linewidth=0.6, color='black')
-plt.plot([Ly,Ly],[0,Lx],linestyle='dashed', linewidth=0.6, color='black')
+plt.plot([0,0],[0,L],linestyle='dashed', linewidth=0.6, color='black')
+plt.plot([0,L],[0,0],linestyle='dashed', linewidth=0.6, color='black')
+plt.plot([0,L],[L,L],linestyle='dashed', linewidth=0.6, color='black')
+plt.plot([L,L],[0,L],linestyle='dashed', linewidth=0.6, color='black')
 # # plt.show()
 for i in range(len(points)):
     x = points[i,0]

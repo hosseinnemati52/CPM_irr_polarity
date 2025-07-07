@@ -679,8 +679,8 @@ void no_LL()
     }
     else if (initConfig.compare("p")==0) // provided sigmaMat and compartMat
     {
-      loadInt1DVec(sigmaMat,   initFolderName+"/"+"sigmaMat_init.csv");
-      loadInt1DVec(compartMat, initFolderName+"/"+"compartMat_init.csv");
+      loadInt1DVec(sigmaMat,   initFolderName+"/"+"sigma_init.csv");
+      loadInt1DVec(compartMat, initFolderName+"/"+"compart_init.csv");
       sitesXsitesYInit(sigmaMat, sitesX, sitesY, \
                        siteComX, siteComY, NumCells, AvgCellArea, Lx, Ly);
     }
@@ -3557,14 +3557,62 @@ void sitesXsitesYInit(const vector<int>& sigmaMat, vector<double>& sitesX, vecto
 
   int xSite, ySite;
 
+
+  vector<double> comXEstimate(NumCells + 1);
+  vector<double> comYEstimate(NumCells + 1);
+  vector<int> cellSiteNum(NumCells + 1);
+
+  for (int cell_c = 0; cell_c <= NumCells; cell_c++)
+  {
+    comXEstimate[cell_c] = 0.0; // estimation of cumulative COM of cells
+    comYEstimate[cell_c] = 0.0;
+    cellSiteNum[cell_c]  = 0;
+  }
+  
+  int cell_ind;
   for (int siteC=0; siteC<NSites; siteC++)
   {
-    xSite = siteComX[siteC];
-    ySite = siteComY[siteC];
-    
-    sitesX[siteC] = siteComX[siteC];
-    sitesY[siteC] = siteComY[siteC];
+    cell_ind = sigmaMat[siteC];
 
+    if (cellSiteNum[cell_ind] == 0)
+    {
+      sitesX[siteC] = siteComX[siteC];
+      sitesY[siteC] = siteComY[siteC];
+
+      comXEstimate[cell_ind] = siteComX[siteC];
+      comYEstimate[cell_ind] = siteComY[siteC];
+
+      cellSiteNum[cell_ind]++;
+    }
+    else // cellSiteNum[cell_ind] > 0
+    {
+      if (siteComX[siteC] - comXEstimate[cell_ind] > Lx/2)
+      {
+        sitesX[siteC] = siteComX[siteC] - Lx;
+      } else if (comXEstimate[cell_ind] - siteComX[siteC] > Lx/2)
+      {
+        sitesX[siteC] = siteComX[siteC] + Lx;
+      } else
+      {
+        sitesX[siteC] = siteComX[siteC];
+      }
+
+      if (siteComY[siteC] - comYEstimate[cell_ind] > Ly/2)
+      {
+        sitesY[siteC] = siteComY[siteC] - Ly;
+      } else if (comYEstimate[cell_ind] - siteComY[siteC] > Ly/2)
+      {
+        sitesY[siteC] = siteComY[siteC] + Ly;
+      } else
+      {
+        sitesY[siteC] = siteComY[siteC];
+      }
+
+      comXEstimate[cell_ind] = (comXEstimate[cell_ind]*cellSiteNum[cell_ind]+sitesX[siteC])/(1+cellSiteNum[cell_ind]);
+      comYEstimate[cell_ind] = (comYEstimate[cell_ind]*cellSiteNum[cell_ind]+sitesY[siteC])/(1+cellSiteNum[cell_ind]);
+
+      cellSiteNum[cell_ind]++;
+    }
   }
 }
 //

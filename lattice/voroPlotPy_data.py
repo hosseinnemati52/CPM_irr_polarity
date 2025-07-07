@@ -24,8 +24,7 @@ import math
 com_file = np.loadtxt("test.dat", dtype=float, delimiter=' ')
 
 LxLy = np.loadtxt("LxLy.dat", dtype=float, delimiter=' ')
-Lx = LxLy[0]
-Ly = LxLy[1]
+L = LxLy[0]
 NumCells = np.shape(com_file)[0]
 
 # vertices_file = np.loadtxt("vertices.dat", dtype=float, delimiter=' ')
@@ -174,22 +173,17 @@ for i in range(NumCells):
         
         copy_dir = copy_direction_list[copy_counter]
         
-        points[:,0] = main_points[:,0].copy() + Lx*copy_dir[1]
-        points[:,1] = main_points[:,1].copy() + Ly*copy_dir[0]
-
-        margin_length = 5*np.sqrt(Lx*Ly/(NumCells))
-        condition = (np.abs(points[0,0]-0.5*Lx)<0.5*Lx+margin_length) and \
-                    (np.abs(points[0,1]-0.5*Ly)<0.5*Ly+margin_length)
+        points[:,0] = main_points[:,0].copy() + L*copy_dir[1]
+        points[:,1] = main_points[:,1].copy() + L*copy_dir[0]
         
-        if condition: 
-            hull = ConvexHull(points)
-            convex_hull = graham_scan(points)
-            convex_hull_plot = convex_hull.copy()
-            for point_c in range(len(convex_hull_plot)):
-                temp = convex_hull_plot[point_c][0].copy()
-                convex_hull_plot[point_c][0] = convex_hull_plot[point_c][1].copy()
-                convex_hull_plot[point_c][1] = temp.copy()
-            plt.fill(*zip(*convex_hull_plot), color=color, alpha=1, edgecolor='black', linewidth=0.2)
+        hull = ConvexHull(points)
+        convex_hull = graham_scan(points)
+        convex_hull_plot = convex_hull.copy()
+        for point_c in range(len(convex_hull_plot)):
+            temp = convex_hull_plot[point_c][0].copy()
+            convex_hull_plot[point_c][0] = convex_hull_plot[point_c][1].copy()
+            convex_hull_plot[point_c][1] = temp.copy()
+        plt.fill(*zip(*convex_hull_plot), color=color, alpha=1, edgecolor='black', linewidth=0.2)
         
 
     # plot the convex hull
@@ -211,17 +205,17 @@ for i in range(NumCells):
 # plt.axis('equal')
 # plt.xlim(-L, 2*L)
 # plt.ylim(-L, 2*L)
-plt.xlim(0, Ly)
-plt.ylim(0, Lx)
+plt.xlim(0, L)
+plt.ylim(0, L)
 plt.gca().set_aspect('equal')
 plt.xlabel('Y')
 plt.ylabel('X')
 plt.grid()
 plt.gca().invert_yaxis()
 
-plt.plot([0,0],[0,Lx],linestyle='dashed', linewidth=0.6, color='black')
-plt.plot([0,Ly],[0,0],linestyle='dashed', linewidth=0.6, color='black')
-plt.plot([0,Ly],[Lx,Lx],linestyle='dashed', linewidth=0.6, color='black')
-plt.plot([Ly,Ly],[0,Lx],linestyle='dashed', linewidth=0.6, color='black')
+plt.plot([0,0],[0,L],linestyle='dashed', linewidth=0.6, color='black')
+plt.plot([0,L],[0,0],linestyle='dashed', linewidth=0.6, color='black')
+plt.plot([0,L],[L,L],linestyle='dashed', linewidth=0.6, color='black')
+plt.plot([L,L],[0,L],linestyle='dashed', linewidth=0.6, color='black')
 plt.savefig("vor_data.png", dpi=1000)
 # plt.show()
